@@ -1,0 +1,794 @@
+\documentclass[11pt]{article}
+% Latin Modern with T1 encoding when available; otherwise Computer Modern (OT1).
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}\usepackage[T1]{fontenc}}{}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools,booktabs,array}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{listings}
+\usepackage[hyphens]{url}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,
+  urlcolor=blue!45!black,
+  pdftitle={Integer multiplication below n log n: the exponent kappa = 2\textasciicircum{}-74}}
+
+\numberwithin{equation}{section}
+\numberwithin{table}{section}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\OAI}{\cite{OAI}}
+\newcommand{\Wb}{W_{\mathrm b}}
+\newcommand{\sbb}{s_{\mathrm b}}
+\newcommand{\Lb}{L_{\mathrm b}}
+\newcommand{\zb}{z_{\mathrm b}}
+\newcommand{\etab}{\eta_{\mathrm b}}
+\newcommand{\Wc}{W_{\mathrm c}}
+\newcommand{\scc}{s_{\mathrm c}}
+\newcommand{\lean}[1]{\texttt{#1}}
+
+\lstset{basicstyle=\ttfamily\scriptsize,columns=fullflexible,keepspaces=true,
+  breaklines=true,frame=single,framerule=0.3pt,xleftmargin=2pt,xrightmargin=2pt,
+  showstringspaces=false,upquote=true}
+
+\title{Integer multiplication below \texorpdfstring{$n\log n$}{n log n}:\\
+the exponent \texorpdfstring{$\kappa=2^{-74}$}{kappa = 2\^{}-74}}
+\author{}
+\date{October 7, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The multitape algorithm of the preprint \emph{Integer multiplication
+below $n\log n$} \OAI{} multiplies two $n$-bit integers in time
+$O(n(\lg n)^{1-\kappa})$ with $\kappa=2^{-182}$; its constants were
+chosen conservatively. We show that the same algorithm, with two local
+changes and new constants, achieves $\kappa=2^{-74}$. First, the axes of
+the Gaussian-resampling and Chinese-remainder layouts can be moved with
+$O(d)$ direct chunk interchanges instead of $O(d^2)$ adjacent ones. This
+removes the condition $\epsilon(2-\tau)<1-\tau$ that forced the
+dimension exponent $\epsilon$ below $2^{-50}$. Second, the
+address-interchange network of \OAI{} with ground set of size $46$
+instead of $100$ admits the swap exponent $\tau=1-\tfrac65 2^{-36}$, against
+the $1-2^{-50}$ used in \OAI. These two changes alone give
+$\kappa=2^{-76}$. An additive unrolling of the guard-width recursion
+and a smaller Gaussian width then allow $\epsilon=3/16$ and give
+$\kappa=2^{-74}$. We also show that, with any bit network of the type
+used in \OAI, every admissible choice of constants in this architecture
+has $\kappa<2^{-73.7}$, so further progress needs a new idea rather than
+tuning. All conditions and margins are checked in exact rational
+arithmetic and, independently, in a companion Lean~4 file; the scan over
+network sizes and the barrier constant are evaluated numerically.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+
+Throughout, \OAI{} denotes the 73-page preprint dated September 23,
+2026, and references such as ``Lemma~12'', ``(38)'' or ``Table~1'' are
+to its numbering. Our own equations and tables are numbered within
+sections, as in (2.1) or Table~1.1, so a plain number always refers to
+\OAI. Logarithms $\log$ are natural; $\lg$ is as in \OAI.
+
+\begin{theorem}\label{thm:main}
+Theorem~1 of \OAI{} holds with $\kappa=2^{-74}$. That is, there is one
+deterministic Turing machine with a fixed finite alphabet and a fixed
+finite number of one-dimensional tapes that computes the exact product
+of two $n$-bit integers for every $n\ge1$ in worst-case time
+$O\bigl(n(\lg n)^{1-2^{-74}}\bigr)$. Consequently Corollary~2 (exact
+division and integer square root) and the transposition bound of
+Section~11 of \OAI{} also hold with $\kappa=2^{-74}$.
+\end{theorem}
+
+The machine is the one constructed in \OAI, with five differences:
+\begin{itemize}
+\item the schedule of the axis movements in Lemma~20 and Section~9.3
+(Section~\ref{sec:axes});
+\item the size of the bit network (Section~\ref{sec:network});
+\item the bound on the guard width in Section~5.4
+(Section~\ref{sec:guard});
+\item the Gaussian width $\alpha$ of Section~9.2.1, with the explicit
+cutoff $b\ge2^{24}$ of Sections~9.2.1 and~9.7.1 raised
+(Section~\ref{sec:alpha});
+\item the fixed constants, including $\beta$, which Section~5.3 fixes
+to $1/2$ (Section~\ref{sec:constants}).
+\end{itemize}
+Every other statement and proof of \OAI{} is used as it stands. Those
+statements depend on the constants only through the inequalities
+collected in Section~\ref{sec:constants}. We do not re-verify the parts
+of \OAI{} that we do not change.
+
+\paragraph{Where $2^{-182}$ comes from.}
+Section~9.8 of \OAI{} divides the running time by $Tp=\Theta(n)$ and
+bounds the quotient by seven powers $p^{1-g_i}$; any $\kappa<\min_i g_i$
+is then admissible. With the constants (38), the smallest margin is
+\[
+ g_2=\epsilon c(1-\tau)=2^{-75}\cdot2^{-56}\cdot2^{-50}=2^{-181},
+\]
+a product of three small numbers.
+\begin{itemize}
+\item $1-\tau$ is the power saving of the chunk interchange
+(Lemma~12). Section~3.6 of \OAI{} takes $1-\tau=2^{-50}$. The $h=100$
+network actually gives $1.19\cdot2^{-40}$, and the network with $h=46$
+gives $1.24\cdot2^{-36}$ (Section~\ref{sec:network}).
+\item $c$ is the exponent of the chunk length $K=\lfloor d^c\rfloor$.
+Proposition~14 requires $\tau(1+c/\beta)<\lambda<1$, hence
+$c<\beta(1-\tau)/\tau$. With $\beta=1/2$ this forces $c$ below about
+$2^{-51}$, and \OAI{} takes $c=2^{-56}$.
+\item $\epsilon$ is the exponent of the number of axes
+$d=\lfloor b^\epsilon\rfloor$. The margin $g_4=1-\tau-\epsilon(2-\tau)$
+of the row ``CRT and axis layouts'' of Table~1 of \OAI{} must be positive, so
+$\epsilon<(1-\tau)/(2-\tau)<2^{-50}$. This constraint comes only from the
+$O(d^2)$ adjacent axis moves in Lemma~20 and Section~9.3.
+\end{itemize}
+Table~\ref{tab:ladder} records the effect of the changes, applied
+cumulatively.
+
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{.39\linewidth}lllll@{}}
+\toprule
+Change & $1-\tau$ & $c$ & $\epsilon$ & $\min_i g_i$ & $\kappa$\\
+\midrule
+\OAI, constants (38) & $2^{-50}$ & $2^{-56}$ & $2^{-75}$ & $2^{-181}$ & $2^{-182}$\\
+$O(d)$ axis interchanges (Sec.~\ref{sec:axes}); new $\beta,c,\epsilon$
+ & $2^{-50}$ & $\tfrac{31}{32}2^{-50}$ & $\tfrac1{15}$ & $2^{-103.95}$ & $2^{-104}$\\
+admissible exponent of the $h=100$ bit network (Rem.~\ref{rem:networks}) & $2^{-40}$ & $\tfrac{31}{32}2^{-40}$ & $\tfrac1{15}$ & $2^{-83.95}$ & $2^{-84}$\\
+bit network with $h=46$ (Sec.~\ref{sec:network})
+ & $2^{-36}$ & $\tfrac{31}{32}2^{-36}$ & $\tfrac1{15}$ & $2^{-75.95}$ & $2^{-76}$\\
+guard width $C_1=5$, smaller $\alpha$, $\delta=\tfrac1{128}$, and $1-\tau=\tfrac65 2^{-36}$ (Secs.~\ref{sec:network}--\ref{sec:alpha})
+ & $\tfrac65 2^{-36}$ & $\tfrac76 2^{-36}$ & $\tfrac3{16}$ & $2^{-73.93}$ & $2^{-74}$\\
+\bottomrule
+\end{tabular}
+\caption{Cumulative effect of the changes. Rows 2--4 use
+$C_1=14$ (which \OAI{} notes is sufficient; it takes $C_1=20$), the Gaussian width
+$\alpha$ of \OAI{} and $\delta=1/16$. All rows after the first use
+$\beta=1-2^{-10}$, $\sigma=1-2^{-50}$ and $\lambda'=1-2^{-61}$. Row~2 uses
+$\lambda=1-2^{-56}$ and the others $\lambda=1-2^{-51}$. In every row
+the minimum margin is $g_2$, and $\kappa$ is the largest power of two
+below it.}
+\label{tab:ladder}
+\end{table}
+
+Section~\ref{sec:limits} shows that the coupling between $c$ and $\tau$
+makes $\kappa\approx\epsilon(1-\tau)^2$ unavoidable in this
+architecture. Section~\ref{sec:verification} describes the
+verification.
+
+\section{Moving axes with \texorpdfstring{$O(d)$}{O(d)} interchanges}
+\label{sec:axes}
+
+\begin{lemma}[Interchanging two axis fields]\label{lem:direct-swap}
+Consider a bit array of volume $V$ whose address consists of fields
+$F_1,\dots,F_k$, in this physical order, followed by a record suffix.
+Let $i<j$ and suppose $F_i,F_j$ have widths in $\{\ell-1,\ell\}$. The
+address permutation that exchanges the contents of $F_i$ and $F_j$, so
+that the old $F_j$ occupies position $i$ and the old $F_i$ position $j$,
+and fixes all other fields, can be performed in $O(V(1+\ell^\tau))$
+steps on a fixed number of tapes. The bound includes descriptor work.
+\end{lemma}
+
+\begin{proof}
+Collapse the fields before $F_i$ into a prefix $[P]$, the fields
+strictly between $F_i$ and $F_j$ into a gap $[G]$, and the fields after
+$F_j$ together with the record suffix into $[B]$. Lemma~12 of \OAI{}
+accepts arbitrary positive $P,G,B$. If the two widths are equal, it
+performs the interchange in $O(V\ell^\tau)$ steps. If they differ by
+one bit, apply the remark following Lemma~12: write the longer field as
+a leading bit followed by a field of the shorter width. One equal-width
+interchange (Lemma~12) and one single-bit move (Lemma~3, $O(V)$) give
+the required permutation, and the gap stays between the two full
+fields. The collapsed lengths have $O(\log V)$ bits, and computing them
+takes $(\log 2V)^{O(1)}=O(V)$ steps.
+\end{proof}
+
+\begin{lemma}[Replacement for the movement bound in Lemma~20]
+\label{lem:tensor-moves}
+Under the hypotheses of the second paragraph of Lemma~20 of \OAI{}
+($t_i\in\{r/2,r\}$, the full padded box of $T$ entries, $O(p)$ bits per
+entry), exposing and restoring all the lines of the linewise
+implementations of $\mathcal A$ and $\mathcal B_0$ costs
+\[
+ O\bigl(Tp\,d\,(1+\ell^\tau)\bigr).
+\]
+\end{lemma}
+
+\begin{proof}
+In the proof of Lemma~20, replace the schedule of adjacent interchanges
+by the following. To expose axis $i$, interchange its field with the
+innermost axis field by Lemma~\ref{lem:direct-swap}, unless axis $i$ is
+already innermost. Then process its lines exactly as in \OAI{} and
+interchange the two fields back.
+
+The descriptor records which coordinate each physical field holds.
+Moving fields therefore changes their positions but not the validity
+conditions, as already noted in the proof of Lemma~20. The line maps
+write $t_i$ values per line, so the padded box keeps its shape and the
+field widths never change. After axis~$i$ is processed the physical
+order is the original one. Hence later steps, which expect axis-major
+order with the length-$r$ axis last, are unaffected.
+
+Each tensor map performs at most $2d$ interchanges, each costing
+$O(Tp(1+\ell^\tau))$, and there is a fixed number of tensor maps. The
+interchanges are exact permutations of the padded box, so they change
+neither norms nor errors.
+\end{proof}
+
+\begin{lemma}[Replacement in Section~9.3]\label{lem:crt-moves}
+The coefficient-address map $\Phi$ of Section~9.3 of \OAI, its inverse
+and their padding operations cost $O(Tp\,d\,(1+\ell^\tau))$.
+\end{lemma}
+
+\begin{proof}
+The only change concerns the step that reorders the complete padded
+axes to $(a_1,\ldots,a_d)$. The nested insertion scan produces the
+physical order $(a_d,\ldots,a_1)$. Reversing it takes the $\lfloor
+d/2\rfloor$ interchanges of the fields in positions $k$ and $d+1-k$,
+$1\le k\le\lfloor d/2\rfloor$, each by Lemma~\ref{lem:direct-swap}
+(widths $\ell$ or $\ell-1$).
+
+All of these interchanges happen before any triangular update. So when
+target $i$ is updated, in the order $i=d,\dots,1$, its lower-index
+controls precede it, as Lemma~4 requires. The inverse first performs the
+inverse triangular updates ($i=1,\dots,d$) and then the same $\lfloor
+d/2\rfloor$ interchanges. The $d$ controlled rotations still cost
+$O(dV)$, and their offset preparation is $o(Tp)$, as in \OAI.
+\end{proof}
+
+Consequently the row ``CRT and axis layouts'' of Table~1 of \OAI{} becomes
+$d(1+\ell^\tau)$. Since $d=\Theta(p^\epsilon)$ and
+$\ell=\Theta(p^{1-\epsilon})$, its power of $p$ is
+$\epsilon+\tau(1-\epsilon)$ and its margin is
+\begin{equation}\label{eq:g4}
+ g_4=(1-\tau)(1-\epsilon),
+\end{equation}
+which is positive for every $0<\epsilon<1$. The condition
+$\epsilon(2-\tau)<1-\tau$ of Section~9.1 disappears. The binding upper
+bounds on $\epsilon$ come from the guard width ($\epsilon C_1<1$) and
+the Gaussian row (Sections~\ref{sec:guard} and~\ref{sec:alpha}).
+
+\section{A smaller address-interchange network}\label{sec:network}
+
+The bit network of Section~3.1 of \OAI{} is defined for every ground-set
+size~$h$. \OAI{} uses $h=100$ for both networks, but notes in
+Section~5.3 that the constants of the complex network ``need not equal
+the constants used to prove the chunk-swap lemma''. We keep the complex
+(phase) network at $h=100$, with $\sigma=1-2^{-50}$ as in~(10), and use
+the bit network with $h=46$.
+
+For general $h$ the bit construction has
+\[
+ v=\tbinom h3,\quad N=v^3,\quad m=h^3,\quad I=3v^2,\quad
+ \zb=3\tbinom{h-3}{2},\quad \Wb=2N+I(v\zb+h),\quad \Lb=Ih^2,
+\]
+and $\sbb=\Wb m-N+2\Lb$ as in Proposition~7. Nothing in Sections~3.1--3.4
+of \OAI{} depends on $h=100$ except the printed numbers. The form
+$x^{\mathsf T}(I-J/9)y$ is nondegenerate whenever $h\ne9$ (its
+eigenvalues are $1$ and $1-h/9$). Every label in table~(6) and in the
+proof of Lemma~6 is built from lines spanned by vectors of nonzero norm
+(the triple indicators satisfy $\langle t_T,t_T\rangle=2$, and
+neighboring indicators are orthogonal), using orthogonal complements,
+tensor products and orthogonal sums. So all labels are nondegenerate,
+and Lemma~6 and Proposition~7 hold with these counts. The binary
+orthonormal-basis assertion of Lemma~6 concerns only the complex
+network. The rank saving is $\Wb m-\sbb=N-2\Lb=v^2(v-6h^2)$, which is
+positive if and only if $h\ge39$.
+
+For $h=46$:
+\[
+\begin{aligned}
+ &v=15180,\qquad N=3\,497\,963\,832\,000,\qquad m=97\,336,\qquad
+  I=691\,297\,200,\qquad \zb=2709,\\
+ &\Wb=28\,434\,979\,789\,999\,200,\qquad
+  \Lb=1\,462\,784\,875\,200=\tfrac{23}{55}N,\\
+ &\sbb=2\,767\,747\,192\,266\,968\,049\,600,\qquad
+  \Wb m=2\,767\,747\,192\,839\,362\,131\,200,\\
+ &\etab:=\frac{\Wb m-\sbb}{\Wb m}=\frac{9}{43\,518\,487\,588}
+  =2.0681\ldots\cdot10^{-10}.
+\end{aligned}
+\]
+
+\begin{lemma}\label{lem:tau}
+For the bit network with $h=46$ and $\tau=1-\tfrac65 2^{-36}$, and
+\emph{a fortiori} for $\tau=1-2^{-36}$, we have $\sbb/\Wb<m^\tau$. So
+Proposition~11 and Lemma~12 hold with this $\tau$.
+\end{lemma}
+
+\begin{proof}
+Put $T=1-\tau$. Since $m<2^{17}$ and $\log2<0.6932$, we have $\log
+m<11.7844$, and therefore
+\[
+ T\log m<\tfrac65\cdot11.7844\cdot2^{-36}<2.058\cdot10^{-10}<\etab.
+\]
+Hence $m^\tau=m\exp(-T\log m)>m(1-T\log m)>m(1-\etab)=\sbb/\Wb$.
+\end{proof}
+
+\begin{remark}\label{rem:networks}
+We record three facts about the two networks.
+\begin{enumerate}
+\item The exact exponent is
+$\log_m(\sbb/\Wb)=1-T^*(46)$ with $T^*(46)=1.23732\ldots\cdot2^{-36}$.
+Over all ground-set sizes, $T^*(h):=-\log(1-\etab(h))/\log h^3$ is
+largest at $h=46$; see Table~\ref{tab:h} in Appendix~\ref{app:h}.
+\item Even the $h=100$ bit network of \OAI{} has
+$T^*(100)=1.194\ldots\cdot2^{-40}$, so $\tau=1-2^{-40}$ is admissible
+there. Section~3.6 of \OAI{} uses only $1-2^{-50}$.
+\item Lemma~10, Proposition~11 and Lemma~12 are generic in
+$(m,W,s)$. Only the finite rational table of Lemma~10 and its prime
+$q$ must be recomputed for the matrices of the new network. In
+Section~5 of \OAI, $\tau$ enters only through the cost $O(V(L^\tau+1))$ of
+Lemma~13, that is, through the conditions $\max\{\tau,\sigma\}<\lambda$
+and $\tau(1+c/\beta)<\lambda$ of Proposition~14.
+\end{enumerate}
+\end{remark}
+
+\section{The guard width}\label{sec:guard}
+
+Section~5.4 of \OAI{} bounds the arithmetic depth of one simultaneous
+layer by the recursion
+\begin{equation}\label{eq:depth-rec}
+ A(e)\le s\,A(e/m)+E\quad\text{(internal node)},\qquad
+ A(e)\le 8e\quad\text{(leaf, $e<d^\beta$)},
+\end{equation}
+where $m$, $s=\scc$ and $W=\Wc$ are the constants of the complex network
+($h=100$) and $E=64(W+m+1)^3$. It then uses $sx+E\le(s+E)x=Bx$, which
+replaces the per-level factor $s\approx m^{4.55}$ by $B\approx m^{10.94}$
+and leads to the exponent $\nu+3=14$ with $\nu=11$ (\OAI{} takes
+$C_1=20$). Unrolling the recursion additively loses much less.
+
+\begin{lemma}\label{lem:unroll}
+Let $M\ge1$ and $C\ge1$ be real numbers, let $E\ge0$, and let
+$2\le\mu\le M^C$.
+Suppose $A_0,A_1,\ldots$ satisfy $A_j\le 8M^j$ at leaf levels (with $0$
+a leaf level) and $A_j\le\mu A_{j-1}+E$ at all other levels. Then
+$A_j+E\le(8+E)M^{Cj}$ for all $j$.
+\end{lemma}
+
+\begin{proof}
+Induction on $j$. At a leaf level, $A_j+E\le 8M^j+E\le(8+E)M^{Cj}$. At
+any other level, $A_j+E\le\mu A_{j-1}+2E\le\mu(A_{j-1}+E)\le
+M^C(8+E)M^{C(j-1)}$, using $\mu\ge2$.
+\end{proof}
+
+\begin{corollary}[Guard exponent $C_1=5$]\label{cor:C1}
+Section~5.4 and Proposition~14 of \OAI{} hold with $C_1=5$, that is,
+with $\Delta=\lceil C_0d^5\rceil$ and the same $C_0=128mB^2$. The only
+resulting condition is $\epsilon C_1<1$.
+\end{corollary}
+
+\begin{proof}
+For the $h=100$ complex network,
+$2\le\scc=1\,873\,807\,244\,636\,671\,267\,308\,000\,000<10^{30}=m^5$.
+By Lemma~\ref{lem:unroll}, applied to \eqref{eq:depth-rec} with
+$A_j=A(m^j)$, a piece of $m^j$ chunks has depth at most
+$(8+E)m^{5j}$. Write $D-q_0=\sum_ja_jm^j$ as in \OAI. Since $\sum
+x_i^5\le(\sum x_i)^5$, the pieces together contribute at most
+$(8+E)(D-q_0)^5\le(8+E)d^5$. At most $d$ individually processed kernels
+add $8d$, and the outer diagonals and the scalar $b_D$ add $t+9\le
+d+9$. The depth of a complete layer is therefore at most
+$(26+E)d^5\le C_0d^5$, because $C_0=128mB^2\ge26+E$. The remainder of
+Section~5.4 uses $C_1$ only through $\Delta\le p$, that is,
+$\epsilon C_1<1$.
+\end{proof}
+
+\begin{remark}[Guard exponent $1+2^{-10}$]\label{rem:tv}
+The recursion~\eqref{eq:depth-rec} concatenates all $s$ child calls of
+a network invocation, but a dependency chain meets far fewer.
+
+A chain meets only the child calls on the edges of the wire it
+currently occupies, and it changes wires only at gates, where all
+incident wires carry the same label. So the number of child calls a
+chain meets at one level is the total variation of the label dimension
+along a path in the label graph given by table~(6) and Lemma~6.
+
+Let $k(x)$ count the decreasing center edges ($3\to4$, one per stage)
+that can precede the vertex $x$, and put
+$\Phi(x)=\dim x+2h\,k(x)$. Along every edge, $\Phi$ increases by at
+least the absolute change in dimension, and $0\le\Phi\le m+6h$. Hence every chain
+meets at most $m+6h$ child calls per level, and this bound is attained.
+
+Lemma~\ref{lem:unroll} with $\mu=m+6h\le m^{1+2^{-10}}$ then gives the
+guard exponent $1+2^{-10}$, and with $\mu\le m^2$ it gives $C_1=2$. We
+do not need this sharper bound.
+\end{remark}
+
+\section{A smaller Gaussian width}\label{sec:alpha}
+
+Lemma~19 of \OAI{}, which adapts the Gaussian resampling of
+Harvey and van der Hoeven~\cite[Theorem~4.2, Proposition~4.7 and
+Lemmas~4.8--4.12]{HvdH},
+requires $2\le\alpha<\sqrt p$ and $\theta>p/\alpha^4$,
+and in Section~9.2.2 every $\theta_i=t_i/s_i-1$ exceeds
+$\eta=1/(4d)$. Hence
+\begin{equation}\label{eq:alpha}
+ \alpha:=\bigl\lceil(24db)^{1/4}\bigr\rceil
+\end{equation}
+suffices, since $\alpha^4\theta_i>24db/(4d)=6b=p$; and $2\le\alpha<\sqrt
+p$ for all large $n$. \OAI{} takes $\alpha=\lceil(12d^2b)^{1/4}\rceil$,
+which carries an extra factor $d/2$ inside the fourth root. With
+\eqref{eq:alpha}:
+\begin{itemize}
+\item $\alpha=\Theta(p^{(1+\epsilon)/4})$, so the row ``Gaussian line
+maps'' $dp^{1/2+\delta}\alpha$ of Table~1 of \OAI{} has power
+$3/4+\delta+5\epsilon/4$ and margin
+$g_5=1/4-\delta-5\epsilon/4$;
+\item $\gamma=2d\alpha^2\le8\sqrt{24}\,d^{3/2}b^{1/2}<40\,b^{1/2+3\epsilon/2}$.
+This is $o(b)$ for $\epsilon<1/3$, so (44) holds for all large $n$. The
+explicit cutoff $b\ge2^{24}$ in Sections~9.2.1 and~9.7.1 must be raised;
+for $\epsilon=3/16$, $b\ge2^{34}$ gives $\gamma\le b/4$;
+\item the Neumann count $k\le\alpha^2+1<p+1$ and the cost bound
+$O(tp^{3/2+\delta}\alpha)$ of Lemma~19 are unchanged, since their
+proofs use only $\alpha<\sqrt p$ and $\alpha^4\theta>p$.
+\end{itemize}
+
+\section{The new constants}\label{sec:constants}
+
+Replace (38) of \OAI{} by
+\begin{equation}\label{eq:new-constants}
+\begin{gathered}
+ \tau=1-\tfrac65 2^{-36}\ \ (\text{bit network, }h=46),\qquad
+ \sigma=1-2^{-50}\ \ (\text{complex network, }h=100),\\
+ \beta=1-2^{-10},\qquad c=\tfrac76 2^{-36},\qquad
+ \lambda=1-2^{-51},\qquad \lambda'=1-2^{-61},\\
+ C_1=5,\qquad \epsilon=\tfrac3{16},\qquad \delta=\tfrac1{128},\qquad
+ \kappa=2^{-74}.
+\end{gathered}
+\end{equation}
+Section~5.3 and the statement of Proposition~14 of \OAI{} fix
+$\tau=\sigma=1-2^{-50}$, $\beta=1/2$ and $C_1=20$. The proofs are
+parametric in these constants (for $C_1$, use
+Corollary~\ref{cor:C1}), and we read Proposition~14 with the values
+\eqref{eq:new-constants}. Its conditions hold:
+\[
+ \max\{\tau,\sigma\}=1-2^{-50}<\lambda<1,\qquad
+ \tau(1+c/\beta)<1-2^{-41}<\lambda,
+\]
+\[
+ \sigma+\beta(1-\sigma)=1-2^{-60}<\lambda'<1,\qquad
+ \lambda<\lambda',\qquad
+ \epsilon C_1=\tfrac{15}{16}<1.
+\]
+The remaining conditions of Section~9 also hold:
+\begin{itemize}
+\item $0<\delta<1/8$ (Lemma~19);
+\item $\epsilon<1/3$ ($\gamma=o(b)$, Section~\ref{sec:alpha});
+\item $\epsilon<1/2$ (prime search: $\log(r/2)/d=\Theta(p^{1-2\epsilon})\to\infty$);
+\item $\epsilon c>0$ ($K/\log p\to\infty$);
+\item $K=\lfloor d^c\rfloor\le\ell-1$ for large $n$.
+\end{itemize}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{.42\linewidth}ll@{}}
+\toprule
+Operation & Normalized cost & Power of $p$\\
+\midrule
+Prefix-slot moves and individual butterfly rounds & $dK$ & $\epsilon(1+c)$\\
+Chunk exchanges for transform layout & $pK^{\tau-1}$ & $1-\epsilon c(1-\tau)$\\
+Simultaneous butterfly rounds & $\ell d^{\lambda'}$ & $1-\epsilon(1-\lambda')$\\
+CRT and axis layouts (Sec.~\ref{sec:axes}) & $d(1+\ell^\tau)$ & $1-(1-\tau)(1-\epsilon)$\\
+Gaussian line maps (Sec.~\ref{sec:alpha}) & $dp^{1/2+\delta}\alpha$ & $3/4+\delta+5\epsilon/4$\\
+Chirps, twists and scalar products & $dp^\delta$ & $\epsilon+\delta$\\
+Packed polynomial products & $\log(rp)$ & $1-\epsilon$\\
+Final scaling and rounding & $p^\delta$ & absorbed above\\
+Input, padding, carries and output & $1$ & absorbed above\\
+\bottomrule
+\end{tabular}
+\caption{Replacement for Table~1 of \OAI: costs divided by $Tp$.}
+\label{tab:costs}
+\end{table}
+
+The margins of the seven dominant rows of Table~\ref{tab:costs} are
+\begin{equation}\label{eq:margins}
+\begin{aligned}
+ g_1&=1-\epsilon(1+c)=\tfrac{13}{16}-\tfrac7{32}2^{-36}, &
+ g_2&=\epsilon c(1-\tau)=\tfrac{21}{80}\,2^{-72}=1.05\cdot2^{-74},\\
+ g_3&=\epsilon(1-\lambda')=\tfrac3{16}2^{-61}, &
+ g_4&=(1-\tau)(1-\epsilon)=\tfrac{39}{40}2^{-36},\\
+ g_5&=\tfrac14-\delta-\tfrac54\epsilon=\tfrac1{128}, &
+ g_6&=1-\delta-\epsilon=\tfrac{103}{128},\qquad g_7=\epsilon=\tfrac3{16}.
+\end{aligned}
+\end{equation}
+Thus $\min_ig_i=g_2>2^{-74}=\kappa$.
+
+\begin{proof}[Proof of Theorem~\ref{thm:main}]
+Follow Section~9.8 of \OAI{} with Table~\ref{tab:costs} in place of
+Table~1 of \OAI. Each row is $O(p^{1-g_i})$: the factor $\log(2d)$ from the
+base-$m$ groups is absorbed in $\lambda'$, and $\log p$ in $p^\delta$.
+Since $\kappa<\min_ig_i$, any fixed power of $\log p$ is at most
+$p^{\min_ig_i-\kappa}$ for large $p$. The factor two in ``$\min_i
+g_i=2\kappa$'' of \OAI{} is not needed, although here it would cost only
+one bit.
+
+Hence the large-input cost is
+$O(Tp\cdot p^{1-\kappa})=O(n(\lg n)^{1-\kappa})$. The finitely many
+small lengths are handled by schoolbook multiplication, as in \OAI.
+Corollary~2 and Section~11 use only the multiplication bound and
+$0<\kappa<1$.
+\end{proof}
+
+\begin{remark}[$\kappa=2^{-76}$ from Sections~\ref{sec:axes}
+and~\ref{sec:network} alone]\label{rem:setA}
+Use the guard exponent $C_1=14$, which \OAI{} notes is sufficient (it
+takes $C_1=20$); keep its Gaussian width $\alpha$ and $\delta=1/16$. Take
+$\tau=1-2^{-36}$ ($h=46$), $c=\tfrac{31}{32}2^{-36}$ and $\epsilon=1/15$,
+with $\sigma,\beta,\lambda,\lambda'$ as in \eqref{eq:new-constants}. All
+conditions hold, including $\epsilon<1/12$ as used in~(40). The margins
+have minimum $g_2=\tfrac{31}{480}2^{-72}>2^{-76}$, with
+$g_5=1/4-\delta-3\epsilon/2=7/80$, so $\kappa=2^{-76}$.
+\end{remark}
+
+\section{Limits of parameter tuning}\label{sec:limits}
+
+\begin{proposition}\label{prop:barrier}
+Keep the algorithm of \OAI{} with the changes above and its cost
+accounting (Table~\ref{tab:costs}). Then every admissible choice of
+constants satisfies $\kappa<\epsilon(1-\tau)^2/\tau$ and
+$\epsilon<1/5$. If the interchange network is the bit network of
+Section~3.1 of \OAI{} for some ground-set size~$h$, then also
+$1-\tau<1.2374\cdot2^{-36}$, and consequently $\kappa<2^{-73.70}$.
+\end{proposition}
+
+\begin{proof}
+The condition $\tau(1+c/\beta)<\lambda<1$ of Proposition~14 gives
+$c<\beta(1/\tau-1)<(1-\tau)/\tau$, where $\beta<1$ because
+$\sigma+\beta(1-\sigma)<\lambda'<1$; so $\kappa<g_2=\epsilon
+c(1-\tau)<\epsilon(1-\tau)^2/\tau$. The condition $g_5>0$ gives
+$\epsilon<1/5-4\delta/5<1/5$; with the Gaussian width of \OAI{} it gives
+even $\epsilon<1/6$.
+
+Proposition~11 needs $s/W<m^\tau$, that is, $1-\tau<T^*(h)$. For $h<39$
+there is no rank saving. For $39\le h\le2000$ a numerical computation
+(Appendix~\ref{app:script}; selected values in Table~\ref{tab:h}) gives $T^*(h)\le T^*(46)<1.2374\cdot2^{-36}$. For
+$h>2000$,
+\[
+ \etab\le\frac{N}{\Wb m}\le\frac{N}{Iv\zb m}=\frac1{3\zb m},
+\]
+and therefore $T^*(h)<2\etab/\log m<10^{-18}$. Finally
+$\tfrac15(1.2374\cdot2^{-36})^2/(1-1.2374\cdot2^{-36})<2^{-73.70}$.
+\end{proof}
+
+The obstruction is structural. The chunk length $K=\lfloor d^c\rfloor$
+serves two purposes. In the transform layout of Lemma~16 there are
+$O(p/K)$ chunk interchanges of width $K$, with normalized cost
+$pK^{\tau-1}$, and this term wants $K$ large. In each simultaneous
+layer, the packed selected-bit additions of Lemma~13 interchange slots
+of width $(e/m)K$, at cost $O((eK)^\tau)$ per node, and this forces
+$c<(1-\tau)/\tau$. Going substantially below $2^{-74}$ therefore needs a
+new idea. Two possibilities are an address-interchange network with a
+larger rank saving (the saving enters squared), or a layout whose chunk
+length is not tied to the swap exponent, for instance a way to realize
+the layout permutation of Lemma~16 at cost below $pK^{\tau-1}$.
+
+\section{Verification}\label{sec:verification}
+
+\paragraph{Exact arithmetic.} The script in Appendix~\ref{app:script}
+(Python) checks every condition with integers and fractions; floating
+point is used only for displayed logarithms and for the scan over $h$.
+It does the following:
+\begin{itemize}
+\item recomputes the printed constants of \OAI{} for $h=100$;
+\item computes the $h=46$ counts and $\etab$;
+\item checks the exponent certificates of Lemma~\ref{lem:tau} and of
+Remark~\ref{rem:networks}, and the optimality of $h=46$ for $h\le2000$;
+\item checks every condition and margin for the five rows of
+Table~\ref{tab:ladder}, including $\epsilon<1/12$ for the four rows that
+keep the Gaussian width of \OAI;
+\item checks $8\sqrt{24}<40$ and that $40\,b^{25/32}\le b/4$ for
+$b\ge2^{34}$ (Section~\ref{sec:alpha});
+\item evaluates the barrier of Proposition~\ref{prop:barrier}.
+\end{itemize}
+
+\paragraph{Lean.} The companion file \lean{IntMulKappa.lean} checks the
+same arithmetic independently in Lean~4~\cite{Lean}. It uses core Lean only (no
+Mathlib), version~4.34.1, the toolchain pinned by the
+\texttt{openai/math} repository. It contains no \lean{sorry} and no
+\lean{native\_decide}, and \lean{\#print axioms} reports at most
+\lean{propext}, \lean{Classical.choice} and \lean{Quot.sound}. It
+compiles in a few seconds with \lean{lean IntMulKappa.lean}. Its
+main statements are listed in Table~\ref{tab:lean}.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}p{.66\linewidth}@{}}
+\toprule
+Lean theorem & Content\\
+\midrule
+\lean{printed\_values\_h100}, \lean{counts\_h46}, \lean{relations\_h46},
+\lean{eta\_b\_h46} & the constants of Section~\ref{sec:network} and of
+\OAI{} (3)--(4), (9), Proposition~8\\
+\lean{rate\_cert} & if $Q,Y>0$ and $Q^qM^p<y_n^q$, where
+$y_0=\lfloor QX/Y\rfloor$ and $y_{i+1}=\lfloor y_i^2/Q\rfloor$, then
+$Y^{q2^n}M^p<X^{q2^n}$\\
+\lean{tau\_B}, \lean{tau\_A} & $\sbb^{K}m^{6}<(\Wb m)^{K}$ with
+$K=5\cdot2^{36}$, and $\sbb^{2^{36}}m<(\Wb m)^{2^{36}}$ ($h=46$); these
+are equivalent to $\sbb/\Wb<m^{1-\frac65 2^{-36}}$ and
+$\sbb/\Wb<m^{1-2^{-36}}$\\
+\lean{tau\_100}, \lean{sigma\_paper} & the same for the $h=100$ bit
+network with $1-2^{-40}$, and for the $h=100$ complex network with
+$\sigma=1-2^{-50}$\\
+\lean{depth\_unroll}, \lean{sum\_pow\_le} & Lemma~\ref{lem:unroll} for integer $C$,
+and $\sum x_i^C\le(\sum x_i)^C$\\
+\lean{guard\_instances\_h100} & $2\le\scc\le m^5$ and $m+6h\le m^2$ for $h=100$\\
+\lean{chain\_tv\_bound} ($h=100$), \lean{chain\_tv\_bound\_25},
+\lean{chain\_tv\_bound\_46}, \lean{extremal\_tv} & in the label graph of
+Remark~\ref{rem:tv}, every path has total variation at most $h^3+6h$,
+and one path attains it\\
+\lean{SetB.certified}, \lean{SetA.certified}, \lean{PaperSet.certified}
+& all conditions and margins of \eqref{eq:new-constants}, of
+Remark~\ref{rem:setA}, and of (38) of \OAI{} ($\min g=g_2=2^{-181}$)\\
+\bottomrule
+\end{tabular}
+\caption{Main statements of \lean{IntMulKappa.lean}.}
+\label{tab:lean}
+\end{table}
+
+The exponents $q2^n$ in \lean{tau\_B} and the other certificates are far
+too large to evaluate. These statements are proved by applying
+\lean{rate\_cert}, and the kernel only checks the small final
+inequality, which needs 36 to 50 truncated squarings at scale
+$Q=2^{160}$.
+
+The Lean file certifies the exact arithmetic of the improvement: the
+network counts, the exponent certificates, and all conditions and
+margins. The scan over $h$ and the barrier constant of
+Proposition~\ref{prop:barrier} are numerical (Appendix~\ref{app:script}).
+The file does not formalize the machine model, the algorithm of \OAI, or
+Lemmas~\ref{lem:direct-swap}--\ref{lem:crt-moves}, and the
+correspondence between dependency chains and paths in the label graph is
+part of the informal argument.
+
+At the time of writing, the \texttt{openai/math} repository
+(commit \texttt{adc7f12}) contains no formalization of \OAI{}
+(family~109). Its formalized Fourier result,
+\lean{OAI.ExactFourier.main\_theorem} (family~130), is a different
+statement in a different model: a subsequential gate-count bound for
+exact complex Fourier circuits (for every $c>0$ there are arbitrarily
+large $n$ with a DFT circuit of fewer than $cn\log_2n$ gates).
+
+\appendix
+
+\section{Exponents of the bit networks}\label{app:h}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}rll@{\qquad}rll@{}}
+\toprule
+$h$ & $\etab(h)$ & $T^*(h)/2^{-36}$ & $h$ & $\etab(h)$ & $T^*(h)/2^{-36}$\\
+\midrule
+39 & $4.228\cdot10^{-12}$ & 0.0264 & 47 & $2.065\cdot10^{-10}$ & 1.2288\\
+40 & $7.385\cdot10^{-11}$ & 0.4586 & 48 & $2.037\cdot10^{-10}$ & 1.2052\\
+41 & $1.234\cdot10^{-10}$ & 0.7614 & 49 & $1.990\cdot10^{-10}$ & 1.1710\\
+42 & $1.579\cdot10^{-10}$ & 0.9678 & 50 & $1.929\cdot10^{-10}$ & 1.1298\\
+43 & $1.810\cdot10^{-10}$ & 1.1023 & 51 & $1.861\cdot10^{-10}$ & 1.0840\\
+44 & $1.955\cdot10^{-10}$ & 1.1833 & 52 & $1.786\cdot10^{-10}$ & 1.0356\\
+45 & $2.035\cdot10^{-10}$ & 1.2248 & 100 & $1.501\cdot10^{-11}$ & 0.0747\\
+46 & $2.068\cdot10^{-10}$ & \textbf{1.2373} & & &\\
+\bottomrule
+\end{tabular}
+\caption{Rank-saving ratio $\etab(h)=(N-2\Lb)/(\Wb m)$ and exact swap
+exponent $1-T^*(h)$, $T^*(h)=-\log(1-\etab)/\log h^3$, of the bit
+network of \OAI, Section~3.1, near the optimum. For $h\le38$ there is no
+saving. The value at $h=100$ is $T^*(100)=1.194\cdot2^{-40}$.}
+\label{tab:h}
+\end{table}
+
+\section{Verification script}\label{app:script}
+
+\begin{lstlisting}[language=Python]
+"""Verification of the constants in the note "Integer multiplication below n log n:
+the exponent kappa = 2^-74".  All conditions and margins use exact integer/Fraction
+arithmetic; floating-point logarithms are used only for display and for the scan of
+T*(h) over h.  Run: python3 verify_kappa.py"""
+from fractions import Fraction as F
+from math import comb, log, log2
+
+def bit_net(h):          # Section 3.1 of [OAI], bit construction, ground set [h]
+    v = comb(h, 3); N = v**3; m = h**3; I = 3*v*v
+    W = 2*N + I*(v*3*comb(h-3, 2) + h); L = I*h*h
+    return dict(v=v, N=N, m=m, W=W, L=L, s=W*m - N + 2*L)
+def cx_net(h):           # Section 3.1 of [OAI], complex construction
+    v = comb(h, 3); N = v**3; m = h**3; I = 3*v*v
+    W = 2*N + I*(v*(comb(h-3, 3) + 3*(h-3)) + h + 1); L = I*(h+1)*h
+    return dict(v=v, N=N, m=m, W=W, L=L, s=W*m - 2*N + 2*L)
+def eta(d): return F(d['W']*d['m'] - d['s'], d['W']*d['m'])
+def Tstar(d):            # 1 - log_m(s/W) = -ln(1-eta)/ln m  (floating point, for display)
+    e = eta(d); return -log(1 - e.numerator/e.denominator)/log(d['m']) if e > 0 else float('nan')
+
+# --- the paper's printed values (h = 100) -------------------------------------------------
+b100, c100 = bit_net(100), cx_net(100)
+assert (b100['W'], b100['s']) == (177176569091445000000, 177176569088785861287000000)
+assert (c100['W'], c100['s']) == (1873807244643542670000, 1873807244636671267308000000)
+assert eta(b100) == F(339, 22587335000000) and eta(c100) == F(73, 19906842167500)
+
+# --- the h = 46 bit network ---------------------------------------------------------------
+b = bit_net(46)
+assert (b['v'], b['N'], b['m']) == (15180, 3497963832000, 97336)
+assert (b['W'], b['L'], b['s']) == (28434979789999200, 1462784875200, 2767747192266968049600)
+assert F(b['L'], b['N']) == F(23, 55) and eta(b) == F(9, 43518487588)
+print("h=46: W_b m =", b['W']*b['m'], "  eta_b =", eta(b), " T* = %.5f * 2^-36" % (Tstar(b)*2**36))
+
+# exponent certificates:  T ln m < eta  ==>  m^(1-T) > m(1 - T ln m) > m(1-eta) = s/W
+ln2_up = F(6932, 10000); assert log(2) < 0.6932
+def cert(T, d, ln_m_up): return T*ln_m_up < eta(d)
+assert b['m'] < 2**17 and cert(F(6, 5)/2**36, b, 17*ln2_up)          # tau = 1-(6/5)2^-36
+assert cert(F(1, 2**36), b, 17*ln2_up)                                # tau = 1-2^-36
+assert b100['m'] < 2**20 and cert(F(1, 2**40), b100, 20*ln2_up)       # h=100: tau = 1-2^-40
+assert cert(F(1, 2**50), c100, 20*ln2_up)                             # sigma = 1-2^-50 (paper)
+
+# optimality of h = 46 among the bit networks (deficit N - 2L > 0 needs h >= 39)
+assert all(bit_net(h)['N'] <= 2*bit_net(h)['L'] for h in range(7, 39))
+best = max(range(39, 2001), key=lambda h: Tstar(bit_net(h)))
+assert best == 46
+print("T*(h) for h = 39..52, 100:", {h: round(Tstar(bit_net(h))*2**36, 4) for h in list(range(39, 53)) + [100]})
+
+# guard width: s_c <= m^5 (C1 = 5) and the chain-variation route m + 6h <= m^(1+2^-10)
+assert 2 <= c100['s'] <= c100['m']**5 and (1 + 600/10**6)**1024 <= 10**6
+
+# --- parameter sets ------------------------------------------------------------------------
+def check(name, T, S, beta, c, lam, lamp, C1, eps, delta, a5, kappa, axis_linear=True):
+    tau, sig = 1 - T, 1 - S
+    eps_max = F(1, 12) if a5 == F(3, 2) else F(1, 3)   # (40) of [OAI] / gamma = o(b) with the new alpha
+    conds = [max(tau, sig) < lam < 1, tau*(1 + c/beta) < lam, max(lam, sig + beta*(1 - sig)) < lamp < 1,
+             eps*C1 < 1, 0 < delta < F(1, 8), 0 < c, 0 < beta < 1, eps < eps_max]
+    g = [1 - eps*(1 + c), eps*c*T, eps*(1 - lamp),
+         T*(1 - eps) if axis_linear else 1 - tau - eps*(2 - tau),
+         F(1, 4) - delta - a5*eps, 1 - delta - eps, eps]
+    assert all(conds), name
+    assert all(x > 0 for x in g) and kappa < min(g), name
+    print(f"{name:7s} min g = 2^{log2(float(min(g))):.4f}  (g2 = {g[1]*2**72} * 2^-72),  kappa = 2^{log2(float(kappa)):.0f}")
+    return min(g)
+check("paper", F(1, 2**50), F(1, 2**50), F(1, 2), F(1, 2**56), 1 - F(1, 2**52), 1 - F(1, 2**54),
+      20, F(1, 2**75), F(1, 16), F(3, 2), F(1, 2**182), axis_linear=False)
+beta, lam, lamp, S = 1 - F(1, 2**10), 1 - F(1, 2**51), 1 - F(1, 2**61), F(1, 2**50)
+check("step1", F(1, 2**50), S, beta, F(31, 32)/2**50, 1 - F(1, 2**56), lamp, 14, F(1, 15), F(1, 16), F(3, 2), F(1, 2**104))
+check("step2", F(1, 2**40), S, beta, F(31, 32)/2**40, lam, lamp, 14, F(1, 15), F(1, 16), F(3, 2), F(1, 2**84))
+check("Set A", F(1, 2**36), S, beta, F(31, 32)/2**36, lam, lamp, 14, F(1, 15), F(1, 16), F(3, 2), F(1, 2**76))
+gB = check("Set B", F(6, 5)/2**36, S, beta, F(7, 6)/2**36, lam, lamp, 5, F(3, 16), F(1, 128), F(5, 4), F(1, 2**74))
+assert gB == F(21, 80)/2**72
+TB, cB = F(6, 5)/2**36, F(7, 6)/2**36
+assert (1 - TB)*(1 + cB/beta) < 1 - F(1, 2**41)
+
+# --- smaller Gaussian width: gamma = 2 d alpha^2 <= 8 sqrt(24) d^(3/2) b^(1/2) < 40 b^(25/32)
+assert 64*24 < 40**2                       # 8 sqrt(24) < 40
+assert 160**32 <= (2**34)**7               # b >= 2^34  ==>  40 b^(25/32) <= b/4  (i.e. b^(7/32) >= 160)
+
+# --- the barrier: g2 < eps * T^2/(1-T) with eps < 1/5 and T < T*(46) ---------------------
+Ts = Tstar(b)
+print("barrier: (1/5) T*^2/(1-T*) = 2^%.3f" % log2(Ts*Ts/5/(1 - Ts)))
+print("all checks passed")
+\end{lstlisting}
+
+\begin{thebibliography}{9}
+\bibitem{OAI}
+OpenAI. \emph{Integer multiplication below $n\log n$}. OpenAI Math
+Release preprint OAI:Integer-multiplication-below-n-log-n-September-23-2026,
+September 23, 2026.
+\url{https://github.com/openai/math}.
+
+\bibitem{HvdH}
+D.~Harvey and J.~van der Hoeven. Integer multiplication in time
+$O(n\log n)$. \emph{Annals of Mathematics} 193(2):563--617, 2021.
+Result numbering as in the 45-page author-hosted manuscript, following
+\OAI.
+
+\bibitem{Lean}
+L.~de~Moura and S.~Ullrich. The Lean~4 theorem prover and programming
+language. In \emph{Automated Deduction -- CADE 28}, LNCS 12699,
+pp.~625--635, Springer, 2021.
+\end{thebibliography}
+
+\end{document}
